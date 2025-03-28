@@ -11,6 +11,7 @@ namespace MyOrm.Examples.Models
     [Table("Users")]
     public class User : IEntity
     {
+        [Key]
         [Column("Id")]
         public int Id { get; set; }
 
