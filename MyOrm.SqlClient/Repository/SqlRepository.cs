@@ -163,7 +163,36 @@ namespace MyOrm.SqlClient.Repository
             command.ExecuteNonQuery();
         }
 
+        public void Delete(object id)
+        {
+            var type = typeof(T);
 
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+            if (tableAttr == null)
+                throw new Exception($"Class {type.Name} must have a [Table] attribute.");
 
+            string tableName = tableAttr.Name;
+
+            var keyProp = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null);
+
+            if (keyProp == null)
+                throw new Exception($"Class {type.Name} must have a property marked with [Key].");
+
+            var keyColumnAttr = keyProp.GetCustomAttribute<ColumnAttribute>();
+            if (keyColumnAttr == null)
+                throw new Exception($"Key property {keyProp.Name} must have a [Column] attribute.");
+
+            string keyColumn = keyColumnAttr.Name;
+
+            string sql = $"DELETE FROM {tableName} WHERE {keyColumn} = @Id;";
+
+            using var connection = new SqlConnection(_connectionString);
+            using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@Id", id);
+
+            connection.Open();
+            command.ExecuteNonQuery();
+        }
     }
 }
