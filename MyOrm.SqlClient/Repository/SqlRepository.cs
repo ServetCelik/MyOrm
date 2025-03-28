@@ -107,5 +107,63 @@ namespace MyOrm.SqlClient.Repository
 
             return entity;
         }
+
+        public void Update(T entity)
+        {
+            var type = typeof(T);
+
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+            if (tableAttr == null)
+                throw new Exception($"Class {type.Name} must have a [Table] attribute.");
+
+            string tableName = tableAttr.Name;
+
+            // Find the key property
+            var keyProp = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null);
+            if (keyProp == null)
+                throw new Exception($"Class {type.Name} must have a property marked with [Key].");
+
+            var keyColumnAttr = keyProp.GetCustomAttribute<ColumnAttribute>();
+            if (keyColumnAttr == null)
+                throw new Exception($"Key property {keyProp.Name} must have a [Column] attribute.");
+
+            string keyColumn = keyColumnAttr.Name;
+            object keyValue = keyProp.GetValue(entity)!;
+
+            // Get all updatable properties (exclude key + [NotMapped])
+            var props = type.GetProperties()
+                .Where(p =>
+                    p.GetCustomAttribute<ColumnAttribute>() != null &&
+                    p.GetCustomAttribute<KeyAttribute>() == null &&
+                    p.GetCustomAttribute<NotMappedAttribute>() == null
+                )
+                .ToList();
+
+            var setClauses = props.Select(p =>
+            {
+                var columnName = p.GetCustomAttribute<ColumnAttribute>()!.Name;
+                return $"{columnName} = @{p.Name}";
+            });
+
+            string sql = $"UPDATE {tableName} SET {string.Join(", ", setClauses)} WHERE {keyColumn} = @Id;";
+
+            using var connection = new SqlConnection(_connectionString);
+            using var command = new SqlCommand(sql, connection);
+
+            foreach (var prop in props)
+            {
+                var value = prop.GetValue(entity) ?? DBNull.Value;
+                command.Parameters.AddWithValue("@" + prop.Name, value);
+            }
+
+            command.Parameters.AddWithValue("@Id", keyValue);
+
+            connection.Open();
+            command.ExecuteNonQuery();
+        }
+
+
+
     }
 }
