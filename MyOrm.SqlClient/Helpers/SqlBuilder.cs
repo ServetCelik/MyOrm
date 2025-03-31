@@ -30,5 +30,40 @@ namespace MyOrm.SqlClient.Helpers
 
             return (sql, props);
         }
+
+        public static (string Sql, List<PropertyInfo> Props, PropertyInfo KeyProp) BuildUpdate<T>(T entity)
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>()
+                ?? throw new Exception($"Class {type.Name} must have a [Table] attribute.");
+
+            var tableName = tableAttr.Name;
+
+            var keyProp = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null)
+                ?? throw new Exception($"Class {type.Name} must have a property marked with [Key].");
+
+            var keyColumnAttr = keyProp.GetCustomAttribute<ColumnAttribute>()
+                ?? throw new Exception($"Key property {keyProp.Name} must have a [Column] attribute.");
+
+            var keyColumn = keyColumnAttr.Name;
+
+            var props = type.GetProperties()
+                .Where(p =>
+                    p.GetCustomAttribute<ColumnAttribute>() != null &&
+                    p.GetCustomAttribute<KeyAttribute>() == null &&
+                    p.GetCustomAttribute<NotMappedAttribute>() == null)
+                .ToList();
+
+            var setClauses = props.Select(p =>
+            {
+                var col = p.GetCustomAttribute<ColumnAttribute>()!.Name;
+                return $"{col} = @{p.Name}";
+            });
+
+            var sql = $"UPDATE {tableName} SET {string.Join(", ", setClauses)} WHERE {keyColumn} = @Id;";
+
+            return (sql, props, keyProp);
+        }
     }
 }
