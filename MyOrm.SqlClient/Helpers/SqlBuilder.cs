@@ -65,5 +65,27 @@ namespace MyOrm.SqlClient.Helpers
 
             return (sql, props, keyProp);
         }
+
+        public static (string Sql, PropertyInfo KeyProp) BuildDelete<T>()
+        {
+            var type = typeof(T);
+
+            var tableAttr = type.GetCustomAttribute<TableAttribute>()
+                ?? throw new Exception($"Class {type.Name} must have a [Table] attribute.");
+
+            var tableName = tableAttr.Name;
+
+            var keyProp = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null)
+                ?? throw new Exception($"Class {type.Name} must have a property marked with [Key].");
+
+            var keyColumnAttr = keyProp.GetCustomAttribute<ColumnAttribute>()
+                ?? throw new Exception($"Key property {keyProp.Name} must have a [Column] attribute.");
+
+            var keyColumn = keyColumnAttr.Name;
+
+            var sql = $"DELETE FROM {tableName} WHERE {keyColumn} = @Id;";
+            return (sql, keyProp);
+        }
     }
 }
